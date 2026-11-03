@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="MPO Purchase Platform — prototype hệ thống thông tin quản lý hoạt động thu mua. Đồ án môn Phân tích và thiết kế hệ thống. Dữ liệu demo.">
+<meta name="description" content="MPO Purchase Platform — hệ thống thông tin quản lý hoạt động thu mua. Đồ án môn Phân tích và thiết kế hệ thống.">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html,body{height:100%}
@@ -1266,7 +1266,7 @@ function PageOverview({role, go, openAI, live}) {
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
               <button className="btn sm" onClick={()=>go('vendors','NCC-1120')}>Mở NCC-1120</button>
               <button className="btn sm" onClick={()=>openAI('Nhà cung cấp nào vừa trễ giao vừa chưa phản hồi SCAR?')}>
-                Hỏi tiếp</button>
+                <AIMark s={14}/> Hỏi tiếp</button>
             </div>
             <div className="ai-note" style={{marginTop:10}}>
               Nhận định dựa trên dữ liệu PO và SCAR đang mở. Không bao gồm nguyên nhân chưa được ghi nhận trên hệ thống.
@@ -1381,7 +1381,8 @@ function PageVendors({role, sel, setSel, go}) {
       chips={v && [<Chip key="1" k={v.tier==='Key Tier-1'?'brand':''}>{v.tier}</Chip>,
                    <span key="2" className="t-code" style={{color:'var(--ink-soft)',alignSelf:'center'}}>{v.code}</span>]}
       footer={v && <React.Fragment>
-        <button className="btn sm" onClick={()=>go('po', null)}>Xem PO liên quan</button>
+        <button className="btn sm" onClick={()=>window.__openAI('Tóm tắt hồ sơ '+v.code)}>
+          <AIMark s={14}/> Hỏi trợ lý</button>
         {role.approve
           ? <button className="btn pri sm" onClick={()=>window.__act({kind:'request',title:'Đề xuất tái xếp hạng Tier — '+v.name,ref:v.code,page:'vendors',role:role.name,detail:'Chờ duyệt theo DOA',toast:'Đã gửi đề xuất tái xếp hạng'})}>Đề xuất tái xếp hạng</button>
           : <button className="btn sm" disabled title={role.limit}>Đề xuất tái xếp hạng</button>}
@@ -1553,6 +1554,8 @@ function PageBidding({role, sel, setSel}) {
       chips={t && [<span key="c" className="t-code" style={{alignSelf:'center',color:'var(--ink-soft)'}}>{t.code}</span>,
                    <Chip key="s" k={t.overdue?'risk':'info'} sh={t.overdue?'tri':''}>{t.status}</Chip>]}
       footer={t && <React.Fragment>
+        <button className="btn sm" onClick={()=>window.__openAI('So sánh các hồ sơ dự thầu của '+t.code)}>
+          <AIMark s={14}/> Hỏi trợ lý</button>
         <button className="btn sm" onClick={()=>window.__act({kind:'request',title:'Yêu cầu làm rõ hồ sơ dự thầu '+t.code,ref:t.code,page:'bidding',role:role.name,detail:t.title,toast:'Đã gửi yêu cầu làm rõ'})}>Yêu cầu làm rõ</button>
         {role.approve
           ? <button className="btn pri sm" onClick={()=>window.__act({kind:'action',title:'Trình kết quả lựa chọn '+t.code,ref:t.code,page:'bidding',role:role.name,detail:t.title,toast:'Đã trình kết quả — chờ phê duyệt theo DOA',override:{kind:'tender',ref:t.code,data:{status:'Chờ phê duyệt kết quả'}}})}>Trình kết quả</button>
@@ -1728,7 +1731,12 @@ function PagePO({role, sel, setSel, go}) {
                    <Chip key="s" k={sevChip(p.risk)} sh={p.risk==='risk'?'tri':''}>{p.status}</Chip>]}
       footer={p && <React.Fragment>
         <button className="btn sm" onClick={()=>go('vendors', p.v)}>Mở hồ sơ NCC</button>
-        <button className="btn pri sm" onClick={()=>window.__act({kind:'action',title:'Soạn email nhắc giao hàng '+p.code,ref:p.code,page:'po',role:role.name,detail:p.vn+' — '+p.mat,toast:'Đã ghi việc; mở trợ lý để lấy bản nháp email'})}>
+        <button className="btn sm" onClick={()=>window.__openAI('Tóm tắt tình trạng '+p.code+' và những việc cần theo dõi tiếp theo')}>
+          <AIMark s={14}/> Hỏi trợ lý</button>
+        <button className="btn pri sm" onClick={()=>{
+          window.__act({kind:'action',title:'Soạn email nhắc giao hàng '+p.code,ref:p.code,page:'po',
+            role:role.name,detail:p.vn+' — '+p.mat,toast:'Đã ghi việc vào nhật ký'});
+          window.__openAI('Soạn email nhắc nhà cung cấp về '+p.code);}}>
           Soạn email nhắc</button>
       </React.Fragment>}>
       {p && <PODetail p={p} role={role} go={go}/>}
@@ -1823,6 +1831,8 @@ function PageQuality({role, sel, setSel, go}) {
                    <Chip key="s" k={sevChip(l.st)} sh={l.st==='ok'?'':'tri'}>{l.res}</Chip>]}
       footer={l && <React.Fragment>
         <button className="btn sm" onClick={()=>go('po', l.po)}>Mở PO</button>
+        <button className="btn sm" onClick={()=>window.__openAI('Tóm tắt kết quả IQC của '+l.lot)}>
+          <AIMark s={14}/> Hỏi trợ lý</button>
         {(role.id==='qa'||role.approve)
           ? <button className="btn pri sm" onClick={()=>window.__act({kind:'action',title:'Ghi kết luận lô '+l.lot,ref:l.lot,page:'quality',role:role.name,detail:l.mat+' — '+l.vn,toast:'Đã ghi kết luận lô',override:{kind:'lot',ref:l.lot,data:{res:'Đã kết luận',st:'ok'}}})}>Ghi kết luận lô</button>
           : <button className="btn sm" disabled title="Chỉ QA/QC hoặc SQE được kết luận lô">Ghi kết luận lô</button>}
@@ -1976,6 +1986,8 @@ function PageContracts({role, sel, setSel, go}) {
                    <Chip key="s" k={sevChip(c.sev)} sh={c.sev==='risk'?'tri':''}>{c.st}</Chip>]}
       footer={c && <React.Fragment>
         <button className="btn sm" onClick={()=>go('vendors', c.v)}>Mở hồ sơ NCC</button>
+        <button className="btn sm" onClick={()=>window.__openAI('Tóm tắt các điều khoản chính của '+c.code)}>
+          <AIMark s={14}/> Hỏi trợ lý</button>
         {role.id==='legal'
           ? <button className="btn pri sm" onClick={()=>window.__act({kind:'action',title:'Pháp lý ghi ý kiến rà soát '+c.code,ref:c.code,page:'contracts',role:role.name,detail:c.vn,toast:'Đã ghi ý kiến rà soát',override:{kind:'contract',ref:c.code,data:{st:'Pháp lý đã rà soát',sev:'ok'}}})}>Ghi ý kiến rà soát</button>
           : <button className="btn sm" disabled title="Chỉ Pháp lý & Tuân thủ được ghi ý kiến rà soát">Ghi ý kiến rà soát</button>}
@@ -2531,6 +2543,419 @@ function AIChart({spec}) {
   return null;
 }
 /* ══════════════════════════════════════════════════════════════
+   BỘ TRẢ LỜI CỤC BỘ
+   Dùng khi trang chạy ngoài claude.ai (không gọi được Claude thật).
+   Hiểu được: chào hỏi, giải thích khái niệm, tra cứu hồ sơ, lọc danh sách,
+   tính tổng/trung bình/xếp hạng, so sánh, vẽ biểu đồ, soạn nháp, hỏi tiếp.
+   ══════════════════════════════════════════════════════════════ */
+
+const strip = s => String(s||'').toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d');
+
+const GLOSSARY = {
+  'otif': ['OTIF — On Time In Full',
+    'Tỷ lệ đơn hàng được giao **đúng hạn và đủ số lượng**. Một đợt giao trễ một ngày hoặc thiếu một thùng đều bị tính là không đạt, nên OTIF khắt khe hơn chỉ số "giao đúng hạn" thông thường.',
+    'Trong hệ thống này, OTIF là một trong các chỉ tiêu của Scorecard và là đầu vào cho việc xem xét lại phân loại Tier. Mục tiêu nội bộ đặt ở mức 95%.'],
+  'tier': ['Phân loại Tier',
+    'Cấp độ quan trọng của nhà cung cấp đối với hoạt động sản xuất, dùng để phân bổ nguồn lực quản lý. **Key Tier-1** là nhóm cấp 1 then chốt, được ưu tiên rà soát hồ sơ và đánh giá tại chỗ.',
+    'Quy trình 2.2 chấm 5 tiêu chí: vị trí trong chuỗi cung ứng, tác động đến chất lượng, sản lượng hoặc giá trị thu mua, mối quan hệ chiến lược, mức độ phụ thuộc. Tier không phải nhãn cố định — có dữ liệu mới thì xem xét lại.'],
+  'scar': ['SCAR — Supplier Corrective Action Request',
+    'Yêu cầu nhà cung cấp thực hiện hành động khắc phục, phát hành khi phát hiện vấn đề chất lượng có tính lặp lại hoặc nghiêm trọng.',
+    'Nhà cung cấp phải nộp hồ sơ CAPA trong hạn quy định. Việc chấp nhận hay từ chối CAPA thuộc thẩm quyền QA/SQE.'],
+  'capa': ['CAPA — Corrective and Preventive Action',
+    'Hồ sơ hành động khắc phục và phòng ngừa, gồm 4 phần: phân tích nguyên nhân gốc, hành động khắc phục, hành động phòng ngừa, bằng chứng hiệu lực.',
+    'CAPA chỉ được đóng khi có bằng chứng cho thấy vấn đề không tái diễn.'],
+  'ncr': ['NCR — Non-Conformance Report',
+    'Báo cáo không phù hợp, ghi nhận khi lô hàng không đạt đặc tả kỹ thuật ở khâu IQC.',
+    'NCR gắn với mã lô cụ thể. Nếu vấn đề nghiêm trọng hoặc lặp lại, hệ thống phát hành thêm SCAR cho nhà cung cấp.'],
+  'iqc': ['IQC — Incoming Quality Control',
+    'Kiểm tra chất lượng đầu vào, thực hiện khi hàng về kho và trước khi nhập kho chính thức.',
+    'Kết quả IQC gắn với mã lô, liên kết ngược về PO và ASN để truy xuất nguồn gốc. Lô không đạt sẽ phát sinh NCR.'],
+  'asn': ['ASN — Advance Shipping Notice',
+    'Thông báo giao hàng trước do nhà cung cấp gửi, báo trước lô hàng nào sắp về, số lượng bao nhiêu, dự kiến ngày nào.',
+    'ASN giúp kho và QA chuẩn bị tiếp nhận. Thiếu ASN là dấu hiệu sớm của nguy cơ giao trễ.'],
+  'grn': ['GRN — Goods Receipt Note',
+    'Phiếu nhập kho, ghi nhận số lượng thực nhận khi hàng về.',
+    'GRN là căn cứ đối chiếu với PO và hóa đơn trong quy trình ba chiều PO – GRN – hóa đơn.'],
+  'pr': ['PR — Purchase Requisition',
+    'Yêu cầu mua hàng do nhà máy hoặc bộ phận kế hoạch lập, nêu nhu cầu vật tư.',
+    'PR được duyệt theo hạn mức rồi mới chuyển thành PO. Người lập PR không tự duyệt PR của mình.'],
+  'po': ['PO — Purchase Order',
+    'Đơn đặt hàng chính thức gửi nhà cung cấp, có giá trị ràng buộc thương mại.',
+    'PO hình thành từ PR đã duyệt và bảng giá trong hợp đồng khung. Sau khi phê duyệt, PO được đồng bộ sang ERP.'],
+  'rbac': ['RBAC — Role-Based Access Control',
+    'Phân quyền theo vai trò: bạn được làm gì phụ thuộc vào vai trò được cấp.',
+    'Chỉ RBAC thì chưa đủ cho doanh nghiệp nhiều nhà máy và nhóm hàng, nên hệ thống kết hợp thêm ABAC.'],
+  'abac': ['ABAC — Attribute-Based Access Control',
+    'Phân quyền theo thuộc tính: ngoài vai trò, còn xét nhà máy, nhóm hàng, kho, mã tổ chức nhà cung cấp.',
+    'Một yêu cầu chỉ được chấp nhận khi **thỏa cả RBAC và ABAC**. Nhờ đó hai nhân viên cùng vai trò vẫn có thể thấy dữ liệu khác nhau.'],
+  'sod': ['SoD — Segregation of Duties',
+    'Phân tách nhiệm vụ: người khởi tạo một giao dịch không được phê duyệt chính giao dịch đó.',
+    'Trong hệ thống này, nút trình duyệt bị khóa với vai trò không có thẩm quyền theo DOA.'],
+  'doa': ['DOA — Delegation of Authority',
+    'Ma trận phân quyền phê duyệt, quy định ai được duyệt tới mức giá trị nào.',
+    'Giao dịch vượt ngưỡng sẽ được Workflow Engine chuyển lên cấp cao hơn.'],
+  'esg': ['ESG — Environmental, Social, Governance',
+    'Nhóm tiêu chí về môi trường, xã hội và quản trị áp dụng với nhà cung cấp.',
+    'Nhóm Key Tier-1 được ưu tiên giám sát tuân thủ Sustainable Supply Chain Guideline.'],
+  'scorecard': ['Scorecard nhà cung cấp',
+    'Bảng điểm tổng hợp hiệu quả nhà cung cấp theo kỳ, lấy dữ liệu từ kết quả giao hàng, chất lượng, mức độ đáp ứng hồ sơ và ESG.',
+    'Kết quả scorecard là căn cứ xem xét lại phân loại Tier ở kỳ sau.'],
+  'rag': ['RAG — Retrieval Augmented Generation',
+    'Cơ chế truy hồi tài liệu để trợ lý trả lời dựa trên hồ sơ thật thay vì trí nhớ của mô hình.',
+    'Retrieval Service nằm ở Data Layer và vẫn áp dụng kiểm tra quyền trước khi trả tài liệu.'],
+  'ppm': ['ppm — parts per million',
+    'Số sản phẩm lỗi trên một triệu đơn vị, dùng đo mức lỗi của nhà cung cấp.',
+    'Trong dữ liệu này, dưới 500 ppm là tốt, trên 900 ppm cần theo dõi.'],
+};
+
+/* ── trích thực thể ── */
+function findCode(q) {
+  const m = String(q).toUpperCase().match(/\b(?:PO|GT|NCC|LOT|SCAR|NCR|PR|GRN|NDA)-[0-9A-Z-]+|HĐ-[0-9-]+/);
+  return m ? m[0] : null;
+}
+function lookup(code) {
+  if (!code) return null;
+  const c = code.toUpperCase();
+  const v = getVENDORS().find(x=>x.code===c); if (v) return {t:'vendor', d:v};
+  const t = getTENDERS().find(x=>x.code===c); if (t) return {t:'tender', d:t};
+  const p = getPOS().find(x=>x.code===c);     if (p) return {t:'po', d:p};
+  const l = getLOTS().find(x=>x.lot===c);     if (l) return {t:'lot', d:l};
+  const s = getSCARS().find(x=>x.code===c);   if (s) return {t:'scar', d:s};
+  const k = getCONTRACTS().find(x=>x.code===c); if (k) return {t:'contract', d:k};
+  return null;
+}
+function findVendor(q) {
+  const n = strip(q);
+  return getVENDORS().find(v => {
+    const full = strip(v.name);
+    if (n.includes(full)) return true;
+    const key = full.replace(/^(ctcp|cong ty|cong ty tnhh|cong ty cp|htx)\s+/,'');
+    return key.length>5 && n.includes(key);
+  }) || null;
+}
+const vn = n => String(Math.round(n*100)/100).replace('.',',');
+
+/* ── các câu trả lời dựng sẵn cho từng thực thể ── */
+function sumVendor(v, role) {
+  const bad = v.certs.filter(c=>c.st!=='ok');
+  return { title: v.name,
+    body:[`${v.cat} · ${v.tier} · hợp tác từ ${v.since}${v.plants.length?' · cung ứng cho '+v.plants.join(', '):''}. Trạng thái hồ sơ: ${v.status}.`],
+    list:[ {t:'OTIF 12 tháng', s: v.otif!=null? vn(v.otif)+'%':'chưa có'},
+           {t:'Tỷ lệ lỗi', s: v.ppm!=null? v.ppm+' ppm':'chưa có'},
+           {t:'Điểm ESG', s: v.esg!=null? v.esg+'/100':'chưa đánh giá'},
+           role.price? {t:'Chi tiêu 12 tháng', s: v.spend? vn(v.spend)+' tỷ ('+vn(v.share)+'% nhóm hàng)':'—'} : null,
+           {t:'Hồ sơ đang mở', s:`${v.open.po} PO · ${v.open.ncr} NCR · ${v.open.scar} SCAR`},
+           bad.length? {t:'Tài liệu cần xử lý', s: bad.map(c=>c.n).join(', ')} : {t:'Chứng nhận', s:'đầy đủ'},
+         ].filter(Boolean),
+    body2: v.tierScore.length
+      ? `Điểm phân loại Tier: ${v.tierScore.reduce((a,x)=>a+x.v,0)}/25. Tiêu chí cao nhất là "${v.tierScore.slice().sort((a,b)=>b.v-a.v)[0].k}".`
+      : 'Nhà cung cấp chưa đủ dữ liệu giao dịch để chấm 5 tiêu chí phân loại Tier.',
+    note:'Số liệu lấy từ hồ sơ nhà cung cấp và dữ liệu giao dịch 12 tháng gần nhất.',
+    src:[{l:v.code, page:'vendors', ref:v.code}] };
+}
+function sumPO(p, role) {
+  const done = p.tl.filter(e=>e.st==='done').length;
+  return { title: p.code,
+    body:[`${p.mat} — ${p.vn}, giao về ${p.plant}. Số lượng ${p.qty}${role.price?', giá trị '+vn(p.value)+' tỷ':''}. Trạng thái: **${p.status}**.`],
+    list:[ {t:'Ngày giao cam kết', s:p.promised.split('-').reverse().join('/')},
+           p.late? {t:'Số ngày trễ', s:p.late+' ngày'} : null,
+           {t:'Tiến độ quy trình', s:`${done}/${p.tl.length} bước đã xong`} ].filter(Boolean),
+    body2: p.reason || 'Chưa ghi nhận vấn đề nào với đơn hàng này.',
+    note:'Nguyên nhân chậm là nội dung do người dùng hoặc nhà cung cấp ghi nhận, không phải suy luận.',
+    src:[{l:p.code, page:'po', ref:p.code}, {l:p.v, page:'vendors', ref:p.v}] };
+}
+function sumTender(t, role) {
+  if (!t.bids.length) return { title:t.code,
+    body:[`${t.title}. Trạng thái: ${t.status}, hạn ${t.due.split('-').reverse().join('/')}. Chưa có hồ sơ dự thầu nào được nộp.`],
+    note:'Tôi chỉ tổng hợp trên hồ sơ đã nộp, không suy đoán về nhà cung cấp chưa tham gia.',
+    src:[{l:t.code, page:'bidding', ref:t.code}] };
+  const sc = t.bids.map(b=>({b, total:b.s.reduce((a,x,i)=>a+x*t.criteria[i].w/100,0)})).sort((a,b)=>b.total-a.total);
+  return { title:'So sánh hồ sơ — '+t.code,
+    body:[`${t.title}. ${t.bids.length} hồ sơ, chấm theo ${t.criteria.length} nhóm tiêu chí có trọng số xác định trước khi mở thầu.`],
+    table:{ h:['Nhà cung cấp','Điểm tổng', role.price?'Giá chào':'Giá','Điểm yếu'],
+      r: sc.map(x=>[x.b.name, vn(x.total), role.price? vn(x.b.price)+' tỷ':'—', x.b.gap||'—']) },
+    body2:`Chênh lệch giữa hồ sơ dẫn đầu và hồ sơ kế tiếp là ${vn(sc[0].total-sc[1].total)} điểm.`,
+    note:'Điểm do hội đồng đánh giá nhập. Tôi không tự chấm và không đề xuất bên trúng thầu.',
+    src:[{l:t.code, page:'bidding', ref:t.code}] };
+}
+function sumLot(l) {
+  const fail = l.tests.filter(t=>!t.ok);
+  return { title:'Kết quả IQC — '+l.lot,
+    body:[`${l.mat} từ ${l.vn}, thuộc ${l.po}, tiếp nhận ${l.recv.split('-').reverse().join('/')} tại ${l.plant}. Kết luận: **${l.res}**.`],
+    table:{ h:['Chỉ tiêu','Đặc tả','Kết quả'], r:l.tests.map(t=>[t.k, t.spec, t.val+(t.ok?'':'  ✕')]) },
+    body2: fail.length? `${fail.length} chỉ tiêu không đạt: ${fail.map(f=>f.k).join(', ')}.` : 'Toàn bộ chỉ tiêu đạt đặc tả.',
+    note: l.ncr? 'Đã phát hành '+l.ncr+(l.scar? ' và '+l.scar:'')+'.' : 'Chưa phát sinh NCR cho lô này.',
+    src:[{l:l.lot, page:'quality', ref:l.lot}, {l:l.po, page:'po', ref:l.po}] };
+}
+function sumScar(s) {
+  return { title:s.code,
+    body:[`${s.vn}, lô ${s.lot}. Phát hành ${s.issued.split('-').reverse().join('/')}, hạn phản hồi ${s.due.split('-').reverse().join('/')}. Trạng thái: **${s.st}**.`, s.issue],
+    list:s.capa.map(c=>({t:c.s, s:c.st})),
+    note:'Việc chấp nhận hay từ chối CAPA thuộc thẩm quyền QA/SQE.',
+    src:[{l:s.code, page:'scorecard', ref:s.code}] };
+}
+function sumContract(c, role) {
+  return { title:c.code,
+    body:[`${c.type} với ${c.vn}, phiên bản ${c.ver}. Hiệu lực ${c.eff.split('-').reverse().join('/')} đến ${c.exp.split('-').reverse().join('/')}. Trạng thái: **${c.st}**.`],
+    list:c.terms.map(t=>({t})),
+    note:'Tóm tắt dựa trên phiên bản đang lưu; khi rà soát pháp lý cần đối chiếu bản ký gốc.',
+    src:[{l:c.code, page:'contracts', ref:c.code}] };
+}
+
+/* ── bộ trả lời ── */
+function localAnswer(q, page, role, ctx, mem) {
+  const n = strip(q);
+  const can = role.price;
+  const V = getVENDORS(), P = getPOS(), T = getTENDERS(), L = getLOTS(), S = getSCARS(), C = getCONTRACTS();
+  const deny = what => ({ title:'Ngoài phạm vi quyền',
+    body:[`Vai trò ${role.name} không được cấp quyền xem ${what}. Tôi kế thừa đúng quyền của bạn nên không trả lời phần này được.`],
+    note:'Giới hạn kiểm soát: '+role.limit, src:[] });
+
+  // 1. phê duyệt — luôn từ chối
+  if (/\b(phe duyet|duyet giup|duyet ho|chap thuan|approve)\b/.test(n))
+    return { title:'Việc này không làm qua hội thoại',
+      body:['Tôi không có thẩm quyền phê duyệt nhà cung cấp, gói thầu, hợp đồng hay PO. Phê duyệt phải thực hiện trên màn hình nghiệp vụ, qua quy trình có ghi nhật ký kiểm toán.',
+            'Tôi giúp được phần chuẩn bị: tóm tắt hồ sơ, đối chiếu tiêu chí, soạn nháp nội dung trình duyệt.'],
+      note:'Nguyên tắc này áp dụng cho mọi vai trò, kể cả vai trò có quyền phê duyệt.', src:[] };
+
+  // 2. chào hỏi, giao tiếp cơ bản
+  if (/^(chao|hi|hello|hey|alo|yo)\b/.test(n) || /^(ban|may|m|trolly|tro ly) (la ai|ten gi)/.test(n))
+    return { title:'Xin chào',
+      body:[`Tôi là trợ lý của MPO Purchase Platform. Bạn đang ở vai trò **${role.name}**, phạm vi dữ liệu: ${role.scope.toLowerCase()}.`,
+            'Tôi tra cứu hồ sơ, phân tích và so sánh dữ liệu, giải thích khái niệm nghiệp vụ, vẽ biểu đồ và soạn nháp văn bản — trong đúng phạm vi quyền của bạn.'],
+      list:[{t:'Thử hỏi: "PO nào đang trễ?"'},{t:'Thử hỏi: "OTIF là gì?"'},
+            {t:'Thử hỏi: "So sánh hồ sơ dự thầu GT-2026-041"'},{t:'Thử hỏi: "Nhà cung cấp nào chi tiêu lớn nhất?"'}],
+      src:[] };
+  if (/^(cam on|thanks|thank you|ok|oke|okay|uhm|um|duoc roi|tot)\b/.test(n) && n.length < 24)
+    return { title:'Sẵn sàng', body:['Bạn cần gì thêm thì hỏi tiếp nhé.'], src:[] };
+  if (/\b(lam duoc gi|giup duoc gi|co the lam gi|chuc nang gi)\b/.test(n))
+    return { title:'Tôi làm được những việc này',
+      body:['Trong phạm vi quyền của bạn:'],
+      list:[{t:'Tra cứu hồ sơ theo mã', s:'PO-26-10-0471, GT-2026-041, NCC-0412…'},
+            {t:'Lọc và xếp hạng danh sách', s:'PO trễ, chứng nhận sắp hết hạn, NCC theo OTIF'},
+            {t:'Tính toán và so sánh', s:'tổng chi tiêu, OTIF trung bình, chênh lệch điểm thầu'},
+            {t:'Giải thích khái niệm', s:'OTIF, Tier, SCAR, CAPA, RBAC, ABAC, SoD, DOA…'},
+            {t:'Vẽ biểu đồ', s:'"vẽ biểu đồ OTIF 6 tháng"'},
+            {t:'Soạn nháp email', s:'nhắc giao hàng, nhắc phản hồi CAPA'}],
+      note:'Tôi không phê duyệt và không gửi email thay bạn.', src:[] };
+
+  // 3. giải thích khái niệm
+  for (const k in GLOSSARY) {
+    const re = new RegExp('\\b'+k+'\\b');
+    if (re.test(n) && /\b(la gi|nghia la|giai thich|hieu the nao|the nao la|dinh nghia)\b/.test(n)) {
+      const g = GLOSSARY[k];
+      return { title:g[0], body:g.slice(1), note:'Giải thích theo cách dùng trong hệ thống này.', src:[] };
+    }
+  }
+
+  // 4. hồ sơ cụ thể theo mã, hoặc theo tên nhà cung cấp, hoặc hồ sơ đang mở
+  const code = findCode(q);
+  let hit = lookup(code);
+  if (!hit && mem && mem.code && /\b(no|cai do|cai nay|ho so nay|don nay|lo nay|vay con|the con)\b/.test(n)) hit = lookup(mem.code);
+  if (!hit) { const v = findVendor(q); if (v) hit = {t:'vendor', d:v}; }
+  if (!hit && ctx) {
+    if (ctx.vendor) hit={t:'vendor',d:ctx.vendor}; else if (ctx.po) hit={t:'po',d:ctx.po};
+    else if (ctx.tender) hit={t:'tender',d:ctx.tender}; else if (ctx.lot) hit={t:'lot',d:ctx.lot};
+    else if (ctx.scar) hit={t:'scar',d:ctx.scar}; else if (ctx.contract) hit={t:'contract',d:ctx.contract};
+    if (hit && !/\b(nay|do|hien tai|dang mo|ho so|don hang|goi thau|lo|hop dong|tom tat|tinh trang|sao|the nao|gi)\b/.test(n)) hit=null;
+  }
+  if (hit) {
+    if (code) { if (mem) mem.code = code; }
+    else if (mem) mem.code = hit.d.code || hit.d.lot;
+    if (/\b(soan|email|nhac|draft|thu)\b/.test(n) && hit.t==='po') return draftEmail(hit.d);
+    if (hit.t==='vendor')   return sumVendor(hit.d, role);
+    if (hit.t==='po')       return sumPO(hit.d, role);
+    if (hit.t==='tender')   return sumTender(hit.d, role);
+    if (hit.t==='lot')      return sumLot(hit.d);
+    if (hit.t==='scar')     return sumScar(hit.d);
+    if (hit.t==='contract') return sumContract(hit.d, role);
+  }
+
+  // 5. soạn email
+  if (/\b(soan|email|nhac nha cung cap|draft)\b/.test(n)) {
+    const p = (ctx&&ctx.po) || P.find(x=>x.risk==='risk') || P[0];
+    return draftEmail(p);
+  }
+
+  // 6. biểu đồ
+  if (/\b(bieu do|ve|truc quan|chart|do thi)\b/.test(n)) {
+    if (/\b(chi tieu|spend|phan bo|gia tri)\b/.test(n)) {
+      if (!can) return deny('dữ liệu chi tiêu');
+      const rows = V.filter(v=>v.spend>0).sort((a,b)=>b.spend-a.spend).map(v=>({k:v.name,v:v.spend,sub:v.tier}));
+      const tot = rows.reduce((a,r)=>a+r.v,0);
+      return { title:'Phân bổ chi tiêu 12 tháng',
+        body:['Câu hỏi về độ lớn giữa các hạng mục rời rạc nên tôi dùng cột xếp hạng.'],
+        chart:{kind:'bar', title:'Chi tiêu theo nhà cung cấp (tỷ đồng)', rows, unit:'tỷ đồng'},
+        body2:`Hai nhà cung cấp dẫn đầu chiếm ${Math.round((rows[0].v+rows[1].v)/tot*100)}% tổng chi tiêu.`,
+        src:[{l:'Mở trang Phân tích', page:'analytics', ref:''}] };
+    }
+    const g = {'Key Tier-1':[],'Tier-1':[],'Tier-2':[]};
+    V.forEach(v=>{ if(v.deliv.length && g[v.tier]) g[v.tier].push(v.deliv.map(d=>d.v)); });
+    const series = Object.keys(g).filter(k=>g[k].length).map(k=>({n:k,
+      v:g[k][0].map((_,i)=>Math.round(g[k].reduce((a,arr)=>a+arr[i],0)/g[k].length*10)/10)}));
+    return { title:'OTIF 6 tháng theo nhóm Tier',
+      body:['Câu hỏi về thay đổi theo thời gian nên tôi dùng biểu đồ đường, mỗi nhóm Tier là một chuỗi trên cùng một trục.'],
+      chart:{kind:'line', title:'OTIF (%) — T5 đến T10', x:['T5','T6','T7','T8','T9','T10'],
+             series, yMin:75, yMax:100, unit:'%'},
+      body2:'Nhóm Tier-2 nằm dưới mục tiêu nội bộ 95% trong cả sáu tháng.',
+      src:[{l:'Mở trang Phân tích', page:'analytics', ref:''}] };
+  }
+
+  // 7. PO trễ / rủi ro
+  if (/\b(tre|cham|delay|rui ro giao|qua han giao)\b/.test(n)) {
+    const late = P.filter(p=>p.risk==='risk');
+    if (!late.length) return { title:'Không có PO nào đang trễ',
+      body:['Trong phạm vi dữ liệu của bạn, mọi đơn hàng đều trong hạn giao cam kết.'], src:[] };
+    return { title:`${late.length} PO đang vượt ngày giao cam kết`,
+      body:[`Tổng cộng ${late.reduce((a,p)=>a+p.late,0)} ngày trễ cộng dồn.`],
+      table:{h:['PO','Nhà cung cấp','Trễ','Nguyên nhân'],
+        r:late.map(p=>[p.code, p.vn, p.late+' ngày', (p.reason||'—').split(/[.;]/)[0]])},
+      note:'Nguyên nhân là nội dung được ghi nhận trên hệ thống, không phải suy luận của tôi.',
+      src:late.map(p=>({l:p.code, page:'po', ref:p.code})) };
+  }
+
+  // 8. chứng nhận
+  if (/\b(chung nhan|certificate|het han|sap het|giay phep)\b/.test(n)) {
+    const rows = [];
+    V.forEach(v=>v.certs.forEach(c=>{ if(c.st!=='ok') rows.push([v.name, c.n, c.exp==='—'?'Chưa nộp':c.exp]); }));
+    return { title:`${rows.length} chứng nhận cần theo dõi`,
+      body:['Gồm chứng nhận hết hạn trong 60 ngày tới và chứng nhận chưa được nộp.'],
+      table:{h:['Nhà cung cấp','Chứng nhận','Hết hạn'], r:rows},
+      note:'Hệ thống không tự xác minh tính xác thực của chứng nhận.',
+      src:[{l:'Danh mục NCC', page:'vendors', ref:''}] };
+  }
+
+  // 9. tính toán tổng hợp
+  if (/\b(tong|trung binh|cao nhat|thap nhat|nhieu nhat|it nhat|xep hang|top|lon nhat|bao nhieu)\b/.test(n)) {
+    if (/\b(chi tieu|spend|gia tri mua)\b/.test(n)) {
+      if (!can) return deny('dữ liệu chi tiêu');
+      const rows = V.filter(v=>v.spend>0).sort((a,b)=>b.spend-a.spend);
+      const tot = rows.reduce((a,v)=>a+v.spend,0);
+      return { title:'Chi tiêu 12 tháng',
+        body:[`Tổng chi tiêu trong phạm vi của bạn là **${vn(tot)} tỷ đồng** trên ${rows.length} nhà cung cấp. Cao nhất là ${rows[0].name} với ${vn(rows[0].spend)} tỷ (${vn(rows[0].spend/tot*100)}%).`],
+        table:{h:['Nhà cung cấp','Chi tiêu (tỷ)','Tỷ trọng'],
+          r:rows.map(v=>[v.name, vn(v.spend), vn(v.spend/tot*100)+'%'])},
+        src:[{l:'Mở trang Phân tích', page:'analytics', ref:''}] };
+    }
+    if (/\b(otif|giao hang|dung han)\b/.test(n)) {
+      const w = V.filter(v=>v.otif!=null).sort((a,b)=>b.otif-a.otif);
+      const avg = w.reduce((a,v)=>a+v.otif,0)/w.length;
+      return { title:'OTIF theo nhà cung cấp',
+        body:[`OTIF trung bình là **${vn(avg)}%**, dưới mục tiêu nội bộ 95%. Cao nhất ${w[0].name} (${vn(w[0].otif)}%), thấp nhất ${w[w.length-1].name} (${vn(w[w.length-1].otif)}%).`],
+        table:{h:['Nhà cung cấp','OTIF','Tier'], r:w.map(v=>[v.name, vn(v.otif)+'%', v.tier])},
+        src:[{l:'Mở trang Phân tích', page:'analytics', ref:''}] };
+    }
+    if (/\b(loi|ppm|chat luong)\b/.test(n)) {
+      const w = V.filter(v=>v.ppm!=null).sort((a,b)=>b.ppm-a.ppm);
+      return { title:'Tỷ lệ lỗi theo nhà cung cấp',
+        body:[`Cao nhất là ${w[0].name} với **${w[0].ppm} ppm**, gấp ${vn(w[0].ppm/w[w.length-1].ppm)} lần nhà cung cấp tốt nhất (${w[w.length-1].name}, ${w[w.length-1].ppm} ppm).`],
+        table:{h:['Nhà cung cấp','ppm','Tier'], r:w.map(v=>[v.name, String(v.ppm), v.tier])},
+        note:'Dưới 500 ppm là tốt, trên 900 ppm cần theo dõi.',
+        src:[{l:'Mở trang Phân tích', page:'analytics', ref:''}] };
+    }
+    if (/\b(esg|ben vung|tuan thu)\b/.test(n)) {
+      const w = V.filter(v=>v.esg!=null).sort((a,b)=>b.esg-a.esg);
+      const low = w.filter(v=>v.esg<70);
+      return { title:'Điểm ESG theo nhà cung cấp',
+        body:[`${low.length}/${w.length} nhà cung cấp dưới 70 điểm${low.length?': '+low.map(v=>v.name).join(', '):''}.`],
+        table:{h:['Nhà cung cấp','ESG','Tier'], r:w.map(v=>[v.name, String(v.esg), v.tier])},
+        src:[{l:'Đánh giá & ESG', page:'scorecard', ref:''}] };
+    }
+  }
+
+  // 10. danh sách theo chủ đề
+  if (/\b(scar|capa|khac phuc)\b/.test(n)) {
+    const open = S.filter(s=>s.sev!=='ok');
+    return { title:`${open.length} SCAR đang theo dõi`,
+      body:[open.length? 'Các yêu cầu khắc phục chưa đóng:' : 'Không còn SCAR nào đang mở.'],
+      table:open.length?{h:['Mã','Nhà cung cấp','Trạng thái','Hạn'],
+        r:open.map(s=>[s.code, s.vn, s.st, s.due.split('-').reverse().join('/')])}:null,
+      src:open.map(s=>({l:s.code, page:'scorecard', ref:s.code})) };
+  }
+  if (/\b(hop dong|nda|dieu khoan|hieu luc)\b/.test(n)) {
+    const soon = C.filter(c=>c.sev!=='ok');
+    return { title:`${soon.length} hợp đồng cần xử lý`,
+      body:['Gồm hợp đồng sắp hết hiệu lực và hồ sơ đang chờ Pháp lý rà soát.'],
+      table:{h:['Mã','Nhà cung cấp','Trạng thái','Hết hạn'],
+        r:soon.map(c=>[c.code, c.vn, c.st, c.exp.split('-').reverse().join('/')])},
+      src:soon.map(c=>({l:c.code, page:'contracts', ref:c.code})) };
+  }
+  if (/\b(lo hang|iqc|kiem tra|khong dat|chat luong)\b/.test(n)) {
+    const bad = L.filter(l=>l.st!=='ok');
+    return { title: bad.length? `${bad.length} lô cần xử lý` : 'Mọi lô đều đạt',
+      body:[bad.length? 'Các lô chưa kết luận hoặc không đạt IQC:' : 'Không có lô nào đang chờ kết luận hay không đạt.'],
+      table:bad.length?{h:['Mã lô','Nhà cung cấp','Vật tư','Kết luận'],
+        r:bad.map(l=>[l.lot, l.vn, l.mat, l.res])}:null,
+      src:bad.map(l=>({l:l.lot, page:'quality', ref:l.lot})) };
+  }
+  if (/\b(goi thau|dau thau|tender|du thau)\b/.test(n)) {
+    const act = T.filter(t=>t.status!=='Đã phê duyệt kết quả');
+    return { title:`${act.length} gói thầu đang xử lý`,
+      body:[T.filter(t=>t.overdue).length? `${T.filter(t=>t.overdue).length} gói đã quá hạn đánh giá.` : 'Không có gói nào quá hạn đánh giá.'],
+      table:{h:['Mã','Nội dung','Trạng thái','Hạn'],
+        r:act.map(t=>[t.code, t.title, t.status, t.due.split('-').reverse().join('/')])},
+      src:act.map(t=>({l:t.code, page:'bidding', ref:t.code})) };
+  }
+  if (/\b(tier|phan loai|key tier)\b/.test(n)) {
+    const k = V.filter(v=>v.tier==='Key Tier-1');
+    return { title:'Phân loại Tier hiện tại',
+      body:[`${k.length} nhà cung cấp thuộc nhóm Key Tier-1, là nhóm được ưu tiên rà soát hồ sơ và đánh giá tại chỗ.`],
+      table:{h:['Nhà cung cấp','Tier','OTIF','ESG'],
+        r:V.filter(v=>v.otif!=null).map(v=>[v.name, v.tier, vn(v.otif)+'%', String(v.esg)])},
+      src:k.map(v=>({l:v.code, page:'vendors', ref:v.code})) };
+  }
+
+  // 11. việc cần làm
+  if (/\b(uu tien|hom nay|viec gi|can lam|to do|cong viec)\b/.test(n)) {
+    const mine = TASKS.filter(t=>t.roles.includes(role.id));
+    const risk = mine.filter(t=>t.pri==='risk');
+    return { title:'Việc cần xử lý trong phạm vi của bạn',
+      body:[`${mine.length} việc đang mở, trong đó **${risk.length} việc đã quá hạn**.`],
+      list:mine.slice(0,5).map(t=>({t:t.t, s:t.sla})),
+      note:'Sắp xếp theo mức quá hạn so với SLA, không theo giá trị giao dịch.',
+      src:risk.slice(0,3).map(t=>({l:t.ref||'Việc #'+t.id, page:t.page, ref:t.ref})) };
+  }
+
+  // 12. kiến trúc / phân quyền
+  if (/\b(kien truc|tang|layer|rbac|abac|phan quyen|quyen han)\b/.test(n))
+    return { title:'Kiến trúc và phân quyền',
+      body:['Hệ thống có ba tầng: **Presentation Layer** (Purchase Portal, Supplier Portal, ứng dụng di động, Chat Widget), **Business Layer** (API Services, điều phối & chính sách, 8 mô-đun nghiệp vụ, Business Entities) và **Data Layer** (DAO/Repository, xử lý dữ liệu, Retrieval Service, Integration Adapters, nguồn dữ liệu).',
+            'Trợ lý không phải tầng thứ tư — đây là năng lực hội thoại có thành phần ở cả ba tầng, dùng lại chính dịch vụ nghiệp vụ và cơ chế phân quyền của nền tảng.',
+            `Quyền của bạn hiện tại: vai trò **${role.name}**, phạm vi ${role.scope.toLowerCase()}. Dữ liệu giá: ${can?'được xem':'bị ẩn'}. Phê duyệt: ${role.approve?'có, theo DOA':'không'}.`],
+      src:[{l:'Trang kiến trúc', page:'arch', ref:''}] };
+
+  // 13. hướng dẫn thao tác
+  if (/\b(lam sao|lam the nao|cach|huong dan|o dau|tim o dau|su dung|dung the nao|bat dau tu dau|xem o dau)\b/.test(n))
+    return { title:'Hướng dẫn nhanh',
+      body:['Các lối đi chính trên hệ thống:'],
+      list:[{t:'Xem việc cần xử lý', s:'Tổng quan'},
+            {t:'Chấm và so sánh hồ sơ dự thầu', s:'Đấu thầu → chọn gói'},
+            {t:'Tra hồ sơ và điểm Tier của NCC', s:'Nhà cung cấp → chọn dòng'},
+            {t:'Theo dõi giao hàng, xem dòng thời gian PO', s:'PR/PO & giao hàng'},
+            {t:'Kết quả IQC và truy xuất lô', s:'Chất lượng'},
+            {t:'Scorecard, SCAR và CAPA', s:'Đánh giá & ESG'},
+            {t:'Biểu đồ và sơ đồ dữ liệu', s:'Phân tích & mô hình'}],
+      note:'Gõ mã hồ sơ vào ô tìm kiếm trên cùng để nhảy thẳng tới nó.',
+      src:[] };
+
+  // 14. không khớp
+  return { title:'Tôi chưa chắc ý bạn',
+    body:[`Chưa tìm thấy dữ liệu khớp với câu hỏi trong phạm vi ${role.scope.toLowerCase()}.`,
+          'Bạn thử nêu mã hồ sơ cụ thể, hoặc hỏi theo một trong các hướng dưới đây.'],
+    list:[{t:'"PO nào đang trễ giao?"'},{t:'"Tóm tắt NCC-0412"'},{t:'"OTIF trung bình là bao nhiêu?"'},
+          {t:'"SCAR là gì?"'},{t:'"Vẽ biểu đồ chi tiêu"'}],
+    note:'Tôi phân biệt dữ liệu có sẵn với suy luận — khi không có dữ liệu, tôi nói rõ thay vì phỏng đoán.',
+    src:[] };
+}
+
+function draftEmail(p) {
+  return { title:'Bản nháp email — bạn kiểm tra trước khi gửi',
+    draft:`Kính gửi Quý ${p.vn},\n\nĐơn hàng ${p.code} (${p.mat}, ${p.qty}, giao tại ${p.plant}) có ngày giao cam kết ${p.promised.split('-').reverse().join('/')}${p.late? ' và hiện đã quá hạn '+p.late+' ngày':''}. ${p.late? 'Chúng tôi chưa nhận được ASN cập nhật cho đợt giao này.' : 'Chúng tôi xin xác nhận lại tiến độ giao hàng.'}\n\nĐề nghị Quý công ty xác nhận lịch giao trước 17h ngày làm việc kế tiếp, hoặc nêu rõ phương án giao từng phần để chúng tôi cân đối kế hoạch sản xuất.\n\nTrân trọng,\nBộ phận Thu mua — Masan Consumer`,
+    note:'Tôi không tự gửi email. Bạn chỉnh sửa rồi gửi từ hộp thư của mình.',
+    src:[{l:p.code, page:'po', ref:p.code}] };
+}
+/* ══════════════════════════════════════════════════════════════
    DỮ LIỆU SỐNG + TRỢ LÝ THẬT
    - db: thao tác của người dùng được ghi lại và mọi người mở link đều thấy
    - sample: trợ lý gọi Claude thật, có công cụ truy vấn / vẽ / điều hướng / ghi việc
@@ -2775,6 +3200,8 @@ function AILive({open, onClose, page, role, ctx, go, live}) {
   const [err, setErr] = useState(null);
   const [mode, setMode] = useState('probe');  // probe | live | scripted
   const ctlRef = useRef(null);
+  const memRef = useRef({});
+  const askRef = useRef(null);
   const endRef = useRef(null);
   const sampleRef = useRef(null);
 
@@ -2847,7 +3274,7 @@ function AILive({open, onClose, page, role, ctx, go, live}) {
     setTurns(next); setBusy(true);
 
     if (mode !== 'live' || !sampleRef.current) {      // dự phòng: kịch bản nội bộ
-      setTimeout(()=>{ setTurns(t=>[...t,{role:'assistant', content:'', scripted:aiAnswer(text,page,role,ctx)}]);
+      setTimeout(()=>{ setTurns(t=>[...t,{role:'assistant', content:'', scripted:localAnswer(text,page,role,ctx,memRef.current)}]);
         setBusy(false); }, 420);
       return;
     }
@@ -2869,7 +3296,7 @@ function AILive({open, onClose, page, role, ctx, go, live}) {
                  || code==='capability_disabled' || code==='tools_unavailable') {
         setMode('scripted');
         setTurns(x=>{ const c=[...x];
-          c[c.length-1]={role:'assistant', content:'', scripted:aiAnswer(text,page,role,ctx)}; return c; });
+          c[c.length-1]={role:'assistant', content:'', scripted:localAnswer(text,page,role,ctx,memRef.current)}; return c; });
         setErr('Trợ lý đang chạy ở chế độ kịch bản nội bộ (chưa được cấp quyền gọi Claude).');
       } else {
         setTurns(x=>{ const c=[...x]; const last=c[c.length-1];
@@ -2882,6 +3309,9 @@ function AILive({open, onClose, page, role, ctx, go, live}) {
       }
     } finally { setBusy(false); ctlRef.current = null; }
   };
+
+  askRef.current = ask;
+  useEffect(()=>{ window.__askAI = q => { if (askRef.current) askRef.current(q); }; },[]);
 
   if (!open) return null;
   const prompts = aiPrompts(page, role, ctx);
@@ -3251,8 +3681,14 @@ function App() {
   useEffect(()=>{ const k=e=>{ if((e.altKey&&e.key==='ArrowLeft')||e.key==='Backspace'&&e.target===document.body) back(); };
     window.addEventListener('keydown',k); return ()=>window.removeEventListener('keydown',k); });
   const setSelFor = p => v => setSel(s=>({...s,[p]:v}));
-  const openAI = (q0) => { setAi(true); if(q0) setTimeout(()=>{
-    const el = document.getElementById('ai-input'); if(el){ el.focus(); } },120); };
+  const openAI = (q0) => {
+    setAi(true);
+    setTimeout(()=>{
+      if (q0 && window.__askAI) window.__askAI(q0);
+      else { const el = document.getElementById('ai-input'); if(el) el.focus(); }
+    }, 260);
+  };
+  useEffect(()=>{ window.__openAI = openAI; });
 
   // ngữ cảnh truyền cho trợ lý
   const ctx = useMemo(()=>{
@@ -3353,7 +3789,6 @@ function App() {
               setQ(''); }}/>
         </div>
         <div style={{flex:1}}/>
-        <div className="demo-pill only-wide">Demo</div>
         <span className={'chip only-wide '+(live.state==='live'?'ok':live.state==='local'?'info':'')}
           title={live.state==='live' ? 'Thao tác được lưu và hiện với mọi người mở link này'
             : live.state==='local' ? 'Thao tác được giữ trên trình duyệt này, không chia sẻ cho người khác'
@@ -3406,8 +3841,8 @@ function App() {
         </button>
         <button className="iconbtn only-wide" title="Thiết lập hệ thống"
           onClick={()=>go('arch')}><I n="gear" s={17}/></button>
-        <button className="iconbtn only-wide" title="Hướng dẫn"
-          onClick={()=>{setAi(true);window.__toast('Hỏi trợ lý bất cứ điều gì về quy trình');}}>
+        <button className="iconbtn only-wide" title="Hướng dẫn sử dụng"
+          onClick={()=>openAI('Hướng dẫn tôi cách dùng hệ thống')}>
           <I n="help" s={17}/></button>
         <span className="vsep only-wide"/>
         <button className={'btn sm '+(ai?'':'')} onClick={()=>setAi(a=>!a)}
