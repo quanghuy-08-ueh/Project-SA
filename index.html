@@ -2956,6 +2956,174 @@ function draftEmail(p) {
     src:[{l:p.code, page:'po', ref:p.code}] };
 }
 /* ══════════════════════════════════════════════════════════════
+   GỌI CLAUDE QUA WORKER RIÊNG
+   Dùng cho bản host ngoài claude.ai. Trang gọi worker, worker giữ API key.
+   Có vòng lặp công cụ: Claude gọi hàm của trang, trang trả kết quả, lặp tiếp.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Dán URL worker vào đây. Để trống thì trang bỏ qua, dùng bộ trả lời cục bộ. */
+const AI_ENDPOINT = '';
+
+function endpoint() {
+  try { return localStorage.getItem('mpo.ai.endpoint') || AI_ENDPOINT; }
+  catch (e) { return AI_ENDPOINT; }
+}
+
+/* Chuyển công cụ kiểu sample sang định dạng Messages API */
+const toApiTools = tools => tools.map(t => ({
+  name: t.name,
+  description: t.description,
+  input_schema: t.inputSchema || { type: 'object', properties: {} },
+}));
+
+/* Đọc luồng SSE của Anthropic, gom text và các khối tool_use */
+async function readStream(res, onText) {
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', text = '', stop = null;
+  const blocks = [];                       // {type:'text'|'tool_use', ...}
+  let cur = null, curJson = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split('\n\n');
+    buf = parts.pop();
+    for (const part of parts) {
+      const line = part.split('\n').find(l => l.startsWith('data:'));
+      if (!line) continue;
+      let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
+
+      if (ev.type === 'content_block_start') {
+        if (ev.content_block.type === 'tool_use') {
+          cur = { type: 'tool_use', id: ev.content_block.id, name: ev.content_block.name, input: {} };
+          curJson = '';
+        } else if (ev.content_block.type === 'text') {
+          cur = { type: 'text', text: '' };
+        }
+      } else if (ev.type === 'content_block_delta') {
+        if (ev.delta.type === 'text_delta') {
+          text += ev.delta.text;
+          if (cur && cur.type === 'text') cur.text += ev.delta.text;
+          if (onText) onText(text);
+        } else if (ev.delta.type === 'input_json_delta') {
+          curJson += ev.delta.partial_json || '';
+        }
+      } else if (ev.type === 'content_block_stop') {
+        if (cur) {
+          if (cur.type === 'tool_use') {
+            try { cur.input = curJson ? JSON.parse(curJson) : {}; } catch (e) { cur.input = {}; }
+          }
+          blocks.push(cur); cur = null; curJson = '';
+        }
+      } else if (ev.type === 'message_delta') {
+        if (ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason;
+      } else if (ev.type === 'error') {
+        throw { code: 'upstream_error', message: (ev.error && ev.error.message) || 'Lỗi từ dịch vụ' };
+      }
+    }
+  }
+  return { text, blocks, stop };
+}
+
+/**
+ * Hỏi Claude qua worker, có vòng lặp công cụ.
+ * turns: [{role:'user'|'assistant', content:string}]
+ * Trả về { text }. Ném { code, message, text? } khi lỗi.
+ */
+async function askViaWorker(turns, { system, tools = [], onText, signal, maxRounds = 4 }) {
+  const url = endpoint();
+  if (!url) throw { code: 'not_configured', message: 'Chưa cấu hình worker' };
+
+  const api = tools.length ? toApiTools(tools) : null;
+  let msgs = turns.map(t => ({ role: t.role, content: t.content }));
+  let all = '';
+
+  for (let round = 0; round < maxRounds; round++) {
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ system, messages: msgs, tools: api || undefined }),
+        signal,
+      });
+    } catch (e) {
+      if (signal && signal.aborted) throw { code: 'cancelled', message: 'Đã dừng', text: all };
+      throw { code: 'unreachable', message: 'Không kết nối được trợ lý', text: all };
+    }
+
+    if (!res.ok) {
+      let detail = '';
+      try { const j = await res.json(); detail = j.error === 'rate_limited'
+        ? 'Đã dùng hết lượt hỏi trong ngày.' : (j.detail || j.error || ''); } catch (e) {}
+      throw { code: res.status === 429 ? 'rate_limited' : 'upstream_error',
+              message: detail || ('Lỗi ' + res.status), text: all };
+    }
+
+    const base = all ? all + '\n\n' : '';
+    const { text, blocks, stop } = await readStream(res, t => onText && onText(base + t));
+    all = base + text;
+
+    const calls = blocks.filter(b => b.type === 'tool_use');
+    if (stop !== 'tool_use' || !calls.length) return { text: all };
+
+    // chạy công cụ của trang rồi gửi kết quả về
+    const results = [];
+    for (const c of calls) {
+      const tool = tools.find(t => t.name === c.name);
+      let out;
+      if (!tool) out = 'Error: không có công cụ tên ' + c.name;
+      else {
+        try {
+          const r = await tool.execute(c.input || {}, { signal: signal || new AbortController().signal });
+          out = typeof r === 'string' ? r : JSON.stringify(r);
+        } catch (e) { out = 'Error: ' + ((e && e.message) || String(e)); }
+      }
+      results.push({ type: 'tool_result', tool_use_id: c.id, content: String(out).slice(0, 8000) });
+    }
+    msgs = msgs.concat(
+      [{ role: 'assistant', content: blocks }],
+      [{ role: 'user', content: results }]
+    );
+  }
+  return { text: all };
+}
+
+/* Bảng điều khiển nhỏ để dán URL worker mà không cần publish lại */
+function AISetup({ onDone }) {
+  const [v, setV] = useState(() => { try { return localStorage.getItem('mpo.ai.endpoint') || ''; } catch (e) { return ''; } });
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const url = v.trim();
+    if (!url) { try { localStorage.removeItem('mpo.ai.endpoint'); } catch (e) {} ; setMsg('Đã xoá cấu hình'); onDone && onDone(); return; }
+    if (!/^https:\/\//.test(url)) { setMsg('URL phải bắt đầu bằng https://'); return; }
+    setBusy(true); setMsg('Đang thử kết nối…');
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'ping' }], max_tokens: 16 }) });
+      if (!r.ok) { let d=''; try { const j = await r.json(); d = j.detail || j.error || ''; } catch(e){}
+        setMsg('Worker trả lỗi ' + r.status + (d ? ': ' + String(d).slice(0,160) : '')); setBusy(false); return; }
+      try { localStorage.setItem('mpo.ai.endpoint', url); } catch (e) {}
+      setMsg('Kết nối được. Trợ lý đã chuyển sang Claude thật.');
+      setBusy(false); onDone && onDone();
+    } catch (e) { setMsg('Không gọi được worker. Kiểm tra URL và danh sách origin trong worker.'); setBusy(false); }
+  };
+  return <div style={{ borderTop: '1px solid var(--line)', padding: '10px 13px', background: 'var(--surface-2)' }}>
+    <div className="t-sec" style={{ fontSize: 10.5, marginBottom: 6 }}>Kết nối Claude thật</div>
+    <input value={v} onChange={e => setV(e.target.value)} placeholder="https://ten-worker.tai-khoan.workers.dev"
+      style={{ width: '100%', height: 30, border: '1px solid var(--line)', borderRadius: 'var(--r)',
+        padding: '0 9px', fontSize: 12.5, background: 'var(--surface)' }} />
+    <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginTop: 7 }}>
+      <button className="btn pri sm" onClick={save} disabled={busy}>Lưu & thử</button>
+      <span className="t-meta" style={{ flex: 1, fontSize: 11.5, lineHeight: 1.4 }}>
+        {msg || 'Dán URL worker. Lưu trên trình duyệt này, không gửi đi đâu.'}</span>
+    </div>
+  </div>;
+}
+/* ══════════════════════════════════════════════════════════════
    DỮ LIỆU SỐNG + TRỢ LÝ THẬT
    - db: thao tác của người dùng được ghi lại và mọi người mở link đều thấy
    - sample: trợ lý gọi Claude thật, có công cụ truy vấn / vẽ / điều hướng / ghi việc
@@ -3198,17 +3366,21 @@ function AILive({open, onClose, page, role, ctx, go, live}) {
   const [val, setVal] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
-  const [mode, setMode] = useState('probe');  // probe | live | scripted
+  const [mode, setMode] = useState('probe');  // probe | remote | live | scripted
+  const [setup, setSetup] = useState(false);
   const ctlRef = useRef(null);
   const memRef = useRef({});
   const askRef = useRef(null);
   const endRef = useRef(null);
   const sampleRef = useRef(null);
 
+  const probe = React.useCallback(async ()=>{
+    if (endpoint()) { setMode('remote'); return; }
+    const s = await useCap('sample');
+    sampleRef.current = s; setMode(s ? 'live' : 'scripted');
+  },[]);
   useEffect(()=>{ let dead=false;
-    (async()=>{ const s = await useCap('sample');
-      if(dead) return; sampleRef.current = s; setMode(s? 'live':'scripted'); })();
-    return ()=>{dead=true;}; },[]);
+    (async()=>{ if(!dead) await probe(); })(); return ()=>{dead=true;}; },[probe]);
   useEffect(()=>{ if(endRef.current) endRef.current.scrollIntoView({block:'end'}); },[turns,busy]);
   useEffect(()=>{ setTurns([]); setCards({}); setErr(null); },[role.id]);
 
@@ -3273,6 +3445,29 @@ function AILive({open, onClose, page, role, ctx, go, live}) {
     const next = [...turns, {role:'user', content:text}];
     setTurns(next); setBusy(true);
 
+    if (mode === 'remote') {                           // qua worker riêng
+      turnsLenRef.current = next.length;
+      const ctl = new AbortController(); ctlRef.current = ctl;
+      setTurns(t=>[...t,{role:'assistant', content:''}]);
+      try {
+        const { text:answer } = await askViaWorker(next, {
+          system: systemTurn(role, {page, label:ctx&&ctx.label}, live),
+          tools: tools(), signal: ctl.signal,
+          onText: t => setTurns(x=>{ const c=[...x]; c[c.length-1]={role:'assistant',content:t}; return c; }) });
+        setTurns(x=>{ const c=[...x]; c[c.length-1]={role:'assistant',content:answer}; return c; });
+      } catch(e) {
+        const keep = e && e.text;
+        setTurns(x=>{ const c=[...x]; const last=c[c.length-1];
+          if (!keep && !last.content) { c.pop();
+            c.push({role:'assistant', content:'', scripted:localAnswer(text,page,role,ctx,memRef.current)}); }
+          else c[c.length-1]={role:'assistant',content:keep||last.content};
+          return c; });
+        if (e && e.code!=='cancelled')
+          setErr((e.message||'Không gọi được trợ lý')+' — tạm trả lời bằng bộ nội bộ.');
+      } finally { setBusy(false); ctlRef.current=null; }
+      return;
+    }
+
     if (mode !== 'live' || !sampleRef.current) {      // dự phòng: kịch bản nội bộ
       setTimeout(()=>{ setTurns(t=>[...t,{role:'assistant', content:'', scripted:localAnswer(text,page,role,ctx,memRef.current)}]);
         setBusy(false); }, 420);
@@ -3322,8 +3517,11 @@ function AILive({open, onClose, page, role, ctx, go, live}) {
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:13.5,fontWeight:600,letterSpacing:'-.01em'}}>MPO AI Assistant</div>
         <div className="t-meta" style={{fontSize:11}}>
-          {role.name} · {mode==='live'?'chỉ đọc & soạn thảo':mode==='scripted'?'chế độ kịch bản':'đang khởi động'}</div>
+          {role.name} · {mode==='remote'?'Claude qua worker riêng':mode==='live'?'chỉ đọc & soạn thảo'
+            :mode==='scripted'?'chế độ nội bộ':'đang khởi động'}</div>
       </div>
+      {mode!=='live' && <button className="iconbtn" style={{width:26,height:26}}
+        onClick={()=>setSetup(v=>!v)} title="Kết nối Claude thật"><I n="gear" s={15}/></button>}
       {turns.length>0 && <button className="btn gho sm" onClick={()=>{setTurns([]);setCards({});setErr(null);}}
         title="Hội thoại mới"><I n="x" s={15}/></button>}
       <button className="btn gho sm" onClick={onClose} aria-label="Đóng trợ lý"><I n="chev" s={16}/></button>
@@ -3358,13 +3556,16 @@ function AILive({open, onClose, page, role, ctx, go, live}) {
       {err && <div className="ai-note" style={{color:'var(--warn)'}}>{err}</div>}
       <div ref={endRef}/>
     </div>
+    {setup && <AISetup onDone={()=>{ setSetup(false); probe(); }}/>}
     <div className="ai-in">
       <textarea value={val} onChange={e=>setVal(e.target.value)} rows={2} id="ai-input"
         placeholder={busy? 'Đang trả lời…' : 'Hỏi, phân tích, nhờ vẽ biểu đồ hoặc mở hồ sơ…'}
         onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ask(val);} }}/>
       <div style={{display:'flex',alignItems:'center',gap:8,marginTop:7}}>
         <span className="t-meta" style={{flex:1,fontSize:11}}>
-          {mode==='live'? 'AI không phê duyệt và không gửi email thay bạn.' : 'Chế độ kịch bản — câu trả lời dựng sẵn.'}
+          {mode==='scripted'
+            ? 'Đang dùng bộ trả lời nội bộ. Bấm bánh răng để nối Claude thật.'
+            : 'AI không phê duyệt và không gửi email thay bạn.'}
         </span>
         {busy
           ? <button className="btn sm" onClick={()=>ctlRef.current&&ctlRef.current.abort()}>Dừng</button>

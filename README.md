@@ -28,6 +28,20 @@ Bản trên GitHub Pages chạy ở chế độ ngoại tuyến: xem được m�
 không được lưu và trợ lý chạy theo kịch bản dựng sẵn. Bản đầy đủ (dữ liệu dùng chung +
 trợ lý gọi Claude thật) chạy trên claude.ai.
 
+## Nối trợ lý với Claude thật
+
+Bản trên GitHub Pages mặc định dùng bộ trả lời nội bộ. Muốn trợ lý gọi Claude thật:
+
+1. Triển khai `worker.js` lên Cloudflare Workers — hướng dẫn từng bước nằm ngay
+   trong phần chú thích đầu file.
+2. Đặt API key của Anthropic làm biến bí mật `ANTHROPIC_API_KEY` trong worker.
+3. Mở trang, bấm biểu tượng bánh răng trong khung trợ lý, dán URL worker, bấm
+   **Lưu & thử**.
+
+Worker giữ API key ở phía máy chủ, chỉ nhận request từ các origin được liệt kê
+trong `ALLOWED`, giới hạn độ dài prompt và số lượt mỗi IP mỗi ngày. Không bao giờ
+đặt API key trực tiếp trong trang: mã nguồn trang tĩnh ai cũng đọc được.
+
 ## Kỹ thuật
 
 Một trang HTML duy nhất, không cần build. React 18 + Babel standalone nạp từ CDN,
