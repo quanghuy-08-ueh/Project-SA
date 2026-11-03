@@ -2395,6 +2395,13 @@ function getCONTRACTS(){ return CONTRACTS.map(c=>withOv(OV_CUR,'contract',c.code
 const useCap = async (n) => { try { return (window.claude && window.claude.use)
   ? await window.claude.use(n) : null; } catch(e){ return null; } };
 
+/* Khi không có kho dữ liệu dùng chung (bản host ngoài claude.ai), thao tác vẫn
+   được giữ trên trình duyệt này để demo được trọn luồng — không chia sẻ cho người khác. */
+const LS = { a:'mpo.activity.v1', o:'mpo.overrides.v1' };
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || (k===LS.a?'[]':'{}')); }
+  catch(e){ return k===LS.a?[]:{}; } };
+const lsSet = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } };
+
 const KEY = (kind, ref) => kind + '__' + String(ref).replace(/[^A-Za-z0-9_-]/g, '-');
 
 function useLive() {
@@ -2411,7 +2418,12 @@ function useLive() {
     (async () => {
       const d = await useCap('db');
       if (dead) return;
-      if (!d) { setState('offline'); return; }
+      if (!d) {                       // dự phòng: lưu trên trình duyệt này
+        const ok = lsSet(LS.a, lsGet(LS.a));
+        setActivity(lsGet(LS.a)); setOv(lsGet(LS.o));
+        setState(ok ? 'local' : 'offline');
+        return;
+      }
       setDb(d); setState('live');
       const u = await useCap('user');
       if (!dead && u) {
@@ -2431,7 +2443,14 @@ function useLive() {
   }, []);
 
   const write = async (coll, id, body) => {
-    if (!db) { window.__toast('Chưa kết nối dữ liệu — thao tác không được lưu','warn'); return false; }
+    if (!db) {
+      if (state === 'offline') { window.__toast('Trình duyệt chặn lưu trữ — thao tác không được giữ lại','warn'); return false; }
+      if (coll === 'activity') { const a = [{id, ...body}, ...lsGet(LS.a)].slice(0,60);
+        if (!lsSet(LS.a, a)) return false; setActivity(a); }
+      else { const o = lsGet(LS.o); o[id] = body;
+        if (!lsSet(LS.o, o)) return false; setOv(o); }
+      return true;
+    }
     try { await db.collection(coll).doc(id).set(body); return true; }
     catch(e){
       window.__toast(e && e.code==='invalid_argument'
@@ -2457,7 +2476,11 @@ function useLive() {
     write('overrides', KEY(kind, ref), { kind, ref, ...data, at:new Date().toISOString() });
 
   const resolve = async (id) => {
-    if (!db) return;
+    if (!db) {
+      const a = lsGet(LS.a).map(x => x.id===id ? {...x, status:'done'} : x);
+      if (lsSet(LS.a, a)) { setActivity(a); window.__toast('Đã đánh dấu yêu cầu đã xử lý'); }
+      return;
+    }
     try { await db.collection('activity').doc(id).update({ status:'done' });
       window.__toast('Đã đánh dấu yêu cầu đã xử lý'); } catch(e){ window.__toast('Không cập nhật được','warn'); }
   };
@@ -2479,18 +2502,18 @@ const useLiveCtx = () => React.useContext(LiveCtx) || { activity:[], ov:{}, stat
 function ActivityCard({live, go, role}) {
   const open = live.activity.filter(a=>a.status==='open');
   const recent = live.activity.slice(0,7);
-  if (live.state==='offline') return <div className="card">
+  if (live.state==='offline' || live.state==='connecting') return <div className="card">
     <div className="card-h"><I n="bell" s={15} c="var(--ink-soft)"/>
       <h3 className="t-card" style={{flex:1,fontSize:13.5}}>Hoạt động</h3></div>
     <div className="card-b" style={{paddingTop:9}}>
       <p className="t-meta" style={{lineHeight:1.5}}>
-        Chưa kết nối được kho dữ liệu dùng chung. Bạn vẫn xem được mọi màn hình,
-        nhưng thao tác sẽ không lưu lại. Thử đăng nhập claude.ai rồi mở lại link.</p>
+        {live.state==='connecting' ? 'Đang kết nối kho dữ liệu…'
+          : 'Trình duyệt đang chặn lưu trữ nên thao tác không giữ lại được. Mọi màn hình vẫn xem bình thường.'}</p>
     </div></div>;
   return <div className="card">
     <div className="card-h"><I n="bell" s={15} c="var(--ink-soft)"/>
       <h3 className="t-card" style={{flex:1,fontSize:13.5}}>Hoạt động & yêu cầu</h3>
-      <Chip k="ok">Trực tiếp</Chip></div>
+      {live.state==='live' ? <Chip k="ok">Trực tiếp</Chip> : <Chip k="info" sh="sq">Lưu trên máy này</Chip>}</div>
     {open.length>0 && <div style={{padding:'10px 14px',background:'var(--warn-wash)',
       borderBottom:'1px solid var(--warn-line)'}}>
       <div style={{fontSize:11.5,fontWeight:600,color:'var(--warn)',marginBottom:6}}>
@@ -2509,7 +2532,8 @@ function ActivityCard({live, go, role}) {
       {recent.length===0
         ? <p className="t-meta" style={{lineHeight:1.5}}>
             Chưa có thao tác nào được ghi. Mọi hành động bạn làm trên hệ thống — trình kết quả,
-            ghi kết luận lô, nhắc nhà cung cấp — sẽ xuất hiện ở đây và hiện với mọi người mở link.</p>
+            ghi kết luận lô, nhắc nhà cung cấp — sẽ xuất hiện ở đây{live.state==='live'
+              ? ' và hiện với mọi người mở link.' : '. Bản này lưu trên trình duyệt của bạn, không chia sẻ cho người khác.'}</p>
         : recent.map((a,i)=>
           <div key={a.id} style={{display:'flex',gap:9,padding:'6px 0',
             borderBottom:i<recent.length-1?'1px dashed var(--line-soft)':'none'}}>
@@ -3155,11 +3179,12 @@ function App() {
         </div>
         <div style={{flex:1}}/>
         <div className="demo-pill only-wide">Demo</div>
-        <span className={'chip only-wide '+(live.state==='live'?'ok':'')}
-          title={live.state==='live'
-            ? 'Thao tác được lưu và hiện với mọi người mở link này'
-            : 'Chưa kết nối kho dữ liệu dùng chung — thao tác sẽ không lưu'}>
-          <i className="dot"/>{live.state==='live'?'Dữ liệu trực tiếp':live.state==='connecting'?'Đang kết nối':'Ngoại tuyến'}
+        <span className={'chip only-wide '+(live.state==='live'?'ok':live.state==='local'?'info':'')}
+          title={live.state==='live' ? 'Thao tác được lưu và hiện với mọi người mở link này'
+            : live.state==='local' ? 'Thao tác được giữ trên trình duyệt này, không chia sẻ cho người khác'
+            : 'Thao tác sẽ không được lưu lại'}>
+          <i className="dot"/>{live.state==='live'?'Dữ liệu trực tiếp':live.state==='local'?'Lưu trên máy này'
+            :live.state==='connecting'?'Đang kết nối':'Ngoại tuyến'}
         </span>
 
         {/* Chuyển vai trò — Bảng 3.3 */}

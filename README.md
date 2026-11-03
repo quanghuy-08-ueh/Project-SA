@@ -3,7 +3,7 @@
 Prototype hệ thống thông tin quản lý hoạt động thu mua (Masan Purchasing Organization),
 thực hiện cho đồ án môn **Phân tích và thiết kế hệ thống**.
 
-**Xem trực tiếp:** https://quanghuy-08-ueh.github.io/mpo-purchase-platform/
+**Xem trực tiếp:** https://quanghuy-08-ueh.github.io/Project-SA/
 
 ## Phạm vi
 
