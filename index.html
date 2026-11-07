@@ -2704,6 +2704,10 @@ function sumContract(c, role) {
 }
 
 /* ── bộ trả lời ── */
+/* Dấu hiệu câu hỏi chạm dữ liệu giá / điều khoản thương mại.
+   Luôn dùng cụm hai từ: riêng "gia" sẽ trùng với "danh gia", "gia vi", "gia han". */
+const PRICE_Q = /(gia chao|chao gia|bao gia|don gia|gia tri|gia mua|gia ban|gia thanh|muc gia|gia ca|gia von|lich su gia|gia bao nhieu|bao nhieu tien|het bao nhieu|chi tieu|spend|ngan sach|budget|chiet khau|cong no|dieu khoan thuong mai|\btco\b|\bprice\b|\bcost\b)/;
+
 function localAnswer(q, page, role, ctx, mem) {
   const n = strip(q);
   const can = role.price;
@@ -2718,6 +2722,11 @@ function localAnswer(q, page, role, ctx, mem) {
       body:['Tôi không có thẩm quyền phê duyệt nhà cung cấp, gói thầu, hợp đồng hay PO. Phê duyệt phải thực hiện trên màn hình nghiệp vụ, qua quy trình có ghi nhật ký kiểm toán.',
             'Tôi giúp được phần chuẩn bị: tóm tắt hồ sơ, đối chiếu tiêu chí, soạn nháp nội dung trình duyệt.'],
       note:'Nguyên tắc này áp dụng cho mọi vai trò, kể cả vai trò có quyền phê duyệt.', src:[] };
+
+  /* 1b. câu hỏi chạm dữ liệu giá / thương mại.
+     Phải chặn TRƯỚC mọi nhánh tra cứu, nếu không câu "giá chào của NCC-0412"
+     sẽ rơi vào nhánh tra nhà cung cấp và trả hồ sơ thay vì từ chối. */
+  if (!can && PRICE_Q.test(n)) return deny('dữ liệu giá và điều khoản thương mại');
 
   // 2. chào hỏi, giao tiếp cơ bản
   if (/^(chao|hi|hello|hey|alo|yo)\b/.test(n) || /^(ban|may|m|trolly|tro ly) (la ai|ten gi)/.test(n))
